@@ -7,6 +7,27 @@ let enableAnaglyph = true;
 let enableAxes = false;
 let firstFrame = true;
 
+// ---- Speed / time management ----
+let speed = 1.0;       // animation speed factor
+let _lastMillis = 0;   // internal timer
+let _time = 0;         // accumulated, speed-scaled seconds
+
+function _tickTime() {
+    const now = millis();
+    if (_lastMillis === 0) _lastMillis = now;
+    const dt = (now - _lastMillis) / 1000;
+    _lastMillis = now;
+    _time += dt * speed;
+    return _time; // this will be available as `t` in eval-expressions
+}
+
+function _setSpeedButtonLabel() {
+    const bu = document.querySelector('#bu-speed');
+    if (bu) bu.innerText = `Speed ${speed}x`;
+}
+
+// -------------------------------
+
 function preprocessSceneINI(source) {
     const errors = [];
     const lineMap = []; // maps expanded line index -> original line number (1-based)
@@ -216,7 +237,6 @@ function parseSceneINI(text) {
         let value = splitArgs(rawValue);
         if (value.length === 1) value = value[0];
 
-        let t = 0.0;
         if (key === 'command' && (value === 'push' || value === 'pop')) {
             objects.push(current);
             current = { transform: [], _lineStart: lineNumber + 1 };
@@ -238,9 +258,7 @@ function parseSceneINI(text) {
         }
         if (key === 'shade') {
             if (value !== 'off' && value !== 'on') {
-                try {
-                    eval(value);
-                } catch (e) {
+                try { eval(value); } catch (e) {
                     errors.push(`Ungültiger Wert für Schattierung (shade) in Zeile ${lineNumber}: "${value}". Gültige Werte sind: off, on.`);
                 }
             }
@@ -248,11 +266,8 @@ function parseSceneINI(text) {
         if (key === 'fill') {
             if (value !== 'off') {
                 try {
-                    try {
-                        eval(value);
-                    } catch(e) {
-                        if (!isValidColor(value)) throw "nope";
-                    }
+                    try { eval(value); }
+                    catch(e) { if (!isValidColor(value)) throw "nope"; }
                 } catch (e) {
                     errors.push(`Ungültiger Wert für Füllfarbe (fill) in Zeile ${lineNumber}: "${value}".`);
                 }
@@ -261,11 +276,8 @@ function parseSceneINI(text) {
         if (key === 'stroke') {
             if (value !== 'off') {
                 try {
-                    try {
-                        eval(value);
-                    } catch(e) {
-                        if (!isValidColor(value)) throw "nope";
-                    }
+                    try { eval(value); }
+                    catch(e) { if (!isValidColor(value)) throw "nope"; }
                 } catch (e) {
                     errors.push(`Ungültiger Wert für Strichfarbe (stroke) in Zeile ${lineNumber}: "${value}".`);
                 }
@@ -273,9 +285,7 @@ function parseSceneINI(text) {
         }
 
         if (key === 'move' || key === 'rotate' || key === 'scale') {
-            if (typeof (value) === 'string') {
-                value = [value, value, value];
-            }
+            if (typeof (value) === 'string') value = [value, value, value];
             current.transform.push({ type: key, value, _line: lineNumber });
         } else {
             current[key] = value;
@@ -297,43 +307,42 @@ function parseSceneINI(text) {
 
 function preload() {
     fetch('scene.ini')
-    .then(response => response.text())
-    .then(text => {
-        x = parseSceneINI(text);
-        sceneDescription = x.objects;
-        for (let entry of sceneDescription) {
-            if (entry.model) {
-                if (!models[entry.model]) {
-                    let path = entry.model;
-                    if (path.indexOf('.') < 0)
-                        path = path + '.obj';
-                    models[entry.model] = loadModel(path, false);
+        .then(response => response.text())
+        .then(text => {
+            x = parseSceneINI(text);
+            sceneDescription = x.objects;
+            for (let entry of sceneDescription) {
+                if (entry.model) {
+                    if (!models[entry.model]) {
+                        let path = entry.model;
+                        if (path.indexOf('.') < 0) path = path + '.obj';
+                        models[entry.model] = loadModel(path, false);
+                    }
+                    let kit = entry.model.split('/')[0];
+                    let model = entry.model.split('/')[1].split('.')[0];
+                    if (!tex[kit]) {
+                        tex[kit] = loadImage(`${kit}/textures/${model}.png`);
+                    }
+                    entry.model = models[entry.model];
+                    entry.tex = tex[kit];
                 }
-                let kit = entry.model.split('/')[0];
-                let model = entry.model.split('/')[1].split('.')[0];
-                if (!tex[kit]) {
-                    tex[kit] = loadImage(`${kit}/textures/${model}.png`);
-                }
-                entry.model = models[entry.model];
-                entry.tex = tex[kit];
             }
-        }
-        let errors = x.errors;
-        if (errors.length > 0) {
-            document.getElementById('errors').style.display = 'block';
-            document.getElementById('errors').innerHTML = errors.map(e => `<p>${e}</p>`).join('');
-        }
-    })
-    .catch(error => console.error('Fehler in scene.ini!', error));
-};
+            let errors = x.errors;
+            if (errors.length > 0) {
+                document.getElementById('errors').style.display = 'block';
+                document.getElementById('errors').innerHTML = errors.map(e => `<p>${e}</p>`).join('');
+            }
+        })
+        .catch(error => console.error('Fehler in scene.ini!', error));
+}
 
 function setup() {
     createCanvas(windowWidth, windowHeight, WEBGL);
     anaglyph = createAnaglyph(this);
     camera = new OrbitCamera();
-    // camera = new FlyCamera();
     window.anaglyph_fonts = {};
     window.anaglyph_fonts.OpenSans = loadFont('include/OpenSans-Regular.ttf');
+    _setSpeedButtonLabel();
 }
 
 function windowResized() {
@@ -404,14 +413,21 @@ function drawAxes(pg) {
 function renderScene(pg) {
     pg.background(255);
 
-    if (enableAxes) {
-        drawAxes(pg);
-    }
+    if (enableAxes) drawAxes(pg);
 
     pg.strokeWeight(2);
     pg.stroke(0);
     pg.fill(255);
-    let t = millis() / 1000;
+
+    // ---- time available to eval()-expressions in scene.ini as `t`
+    let t = _tickTime();
+
+    // If scene not loaded yet, skip drawing to avoid errors
+    if (!Array.isArray(sceneDescription)) {
+        firstFrame = false;
+        return;
+    }
+
     for (let entry of sceneDescription) {
         try {
             if (entry.command === 'push') {
@@ -464,11 +480,9 @@ function renderScene(pg) {
             }
             if (entry.shade) {
                 pg.noLights();
-                if (entry.shade === 'off') {
-                } else {
+                if (entry.shade !== 'off') {
                     pg.ambientLight(64);
                     pg.directionalLight(255, 255, 255, 0.5, 0.5, -1);
-
                 }
             }
             if (entry.anaglyph) {
@@ -518,6 +532,7 @@ function renderScene(pg) {
                 pg.pop();
             }
         } catch (error) {
+            // swallow eval/scene errors to keep frame rendering
         }
     }
     firstFrame = false;
@@ -529,12 +544,30 @@ function isValidColor(str) {
     return s.color !== '';
 }
 
-window.addEventListener('DOMContentLoaded', function(e) {
-    document.querySelector('#bu-anaglyph').addEventListener('click', function(e) {
+window.addEventListener('DOMContentLoaded', function() {
+    const buAna = document.querySelector('#bu-anaglyph');
+    const buAxes = document.querySelector('#bu-axes');
+    const buSpeed = document.querySelector('#bu-speed');
+    const buReset = document.querySelector('#bu-reset');
+
+    if (buAna) buAna.addEventListener('click', function() {
         enableAnaglyph = !enableAnaglyph;
         anaglyph.shaderLoaded = enableAnaglyph;
     });
-    document.querySelector('#bu-axes').addEventListener('click', function(e) {
+    if (buAxes) buAxes.addEventListener('click', function() {
         enableAxes = !enableAxes;
     });
+    if (buSpeed) buSpeed.addEventListener('click', function() {
+        // cycle 0.5x → 1x → 2x → 4x → 0.5x ...
+        if (speed === 0.5) speed = 1.0;
+        else if (speed === 1.0) speed = 2.0;
+        else if (speed === 2.0) speed = 4.0;
+        else speed = 0.5;
+        _setSpeedButtonLabel();
+    });
+    if (buReset) buReset.addEventListener('click', function() {
+        if (camera && typeof camera.reset === 'function') camera.reset();
+    });
+
+    _setSpeedButtonLabel();
 });
