@@ -1,0 +1,61 @@
+html, body {
+    margin: 0;
+    overflow: hidden;
+    touch-action: none;       /* Disable all default touch gestures */
+    overscroll-behavior: none; /* Prevent scroll chaining */
+    -webkit-user-select: none; /* Disable text selection on mobile */
+    user-select: none;
+    -webkit-touch-callout: none; /* Disable callouts on iOS */
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #fff;
+    font-family: "Open Sans";
+}
+
+#errors {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    margin: 1em;
+    border: 1px solid #a00;
+    border-radius: 0.25em;
+    padding: 0.5em 1em;
+    color: #222;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    font-family: sans-serif;
+    font-size: 16px;
+    overflow-y: auto;
+    display: none;
+    background-color: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(1em);
+}
+
+p {
+    margin: 0.5em 0;
+}
+
+#controls {
+    position: absolute;
+    left: 1em;
+    bottom: 1em;
+}
+
+.btn {
+    font-size: 0.9rem;
+    padding: 0.5em 1em;
+    border-radius: 0.25em;
+    border: 0.1em solid rgba(0, 0, 0, 0.2);
+    background-color: rgba(255, 255, 255, 0.8);
+    color: rgba(0, 0, 0, 0.9);
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.btn:hover {
+    border: 0.1em solid rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 0.2em rgba(0, 0, 0, 0.1);
+}
